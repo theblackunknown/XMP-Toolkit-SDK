@@ -4,6 +4,9 @@
 # header files and cpp/c files and CMake will sort them out
 # ==============================================================================
 
+find_package(EXPAT 2.1.0)
+find_package(ZLIB  1.2.8)
+
 #file (GLOB INTERNAL_HEADER_FILES ${PRODUCT_ROOT}/source/*.hpp ${PRODUCT_ROOT}/source/*.incl_cpp ${PRODUCT_ROOT}/build/*.h)
 file (GLOB INTERNAL_HEADER_COMMONCODE_NMDS ${PRODUCT_ROOT}/XMPFiles/source/NativeMetadataSupport/*.h)
 source_group("Header Files\\Internal Headers\\Common Code\\NativeMetadataSupport" FILES ${INTERNAL_HEADER_COMMONCODE_NMDS})
@@ -65,19 +68,28 @@ list (APPEND PUBLIC_HEADER
 	)
 source_group("Header Files\\Public Headers" FILES ${PUBLIC_HEADER})
 
-file (GLOB HEADERFILES_THIRDPARTY_ZLIB ${XMPROOT_DIR}/third-party/zlib/*.h)
-list (REMOVE_ITEM HEADERFILES_THIRDPARTY_ZLIB
-	${CMAKE_CURRENT_SOURCE_DIR}/${XMPROOT_DIR}/third-party/zlib/gzguts.h
+if (EXPAT_FOUND)
+	list (APPEND THIRDPARTY_LIBRARIES
+		EXPAT::EXPAT
 	)
-source_group("Header Files\\ThirdParty\\zlib" FILES ${HEADERFILES_THIRDPARTY_ZLIB})
+	unset(FILES_THIRDPARTY_EXPAT)
+	message(STATUS "Expat found through find_package, adding it as a linked library")
+else()
+	# TODO: Check existence
+	message(STATUS "Expat *NOT* found through find_package, adding sources from third party sources")
+	set(TP_EXPAT_PATH "${PROJECT_ROOT}/../../third-party/expat/lib/")
+	list (APPEND FILES_THIRDPARTY_EXPAT
+		${TP_EXPAT_PATH}/xmlparse.c
+		${TP_EXPAT_PATH}/xmlrole.c
+		${TP_EXPAT_PATH}/xmltok.c
+	)
+	source_group("Source Files\\ThirdParty\\expat" FILES ${FILES_THIRDPARTY_EXPAT})
 
-list (APPEND FILES_THIRDPARTY_EXPAT
-	${TP_EXPAT_PATH}/xmlparse.c
-	${TP_EXPAT_PATH}/xmlrole.c
-	${TP_EXPAT_PATH}/xmltok.c
-	)
-list (APPEND FILES_THIRDPARTY_EXPAT ${RESOURCE_ROOT}/../../XMPCore/resource/${XMP_PLATFORM_SHORT}/expat_config.h)
-source_group("Source Files\\ThirdParty\\expat" FILES ${FILES_THIRDPARTY_EXPAT})
+	list (APPEND FILES_THIRDPARTY_EXPAT ${RESOURCE_ROOT}/../../XMPCore/resource/${XMP_PLATFORM_SHORT}/expat_config.h)
+
+	include_directories(${TP_EXPAT_PATH})
+	include_directories(${XMPROOT_DIR}/third-party/expat/public/lib)
+endif()
 
 list (APPEND HEADERFILES
 	${XMPROOT_DIR}/source/Host_IO.hpp
@@ -174,9 +186,25 @@ file (GLOB PUBLIC_XMPCORE_CLIENTGLUE_FILES ${XMPROOT_DIR}/public/include/XMPCore
 source_group("Source Files\\Public\\XMPCore" FILES ${PUBLIC_XMPCORE_CLIENTGLUE_FILES})
 endif()
 #endif()
-list (APPEND HEADERFILES_THIRDPARTY_ZLIB
-	${XMPROOT_DIR}/third-party/zlib/adler32.c
-	${XMPROOT_DIR}/third-party/zlib/compress.c
+
+if (ZLIB_FOUND)
+	list (APPEND THIRDPARTY_LIBRARIES
+		ZLIB::ZLIB
+	)
+	unset(HEADERFILES_THIRDPARTY_ZLIB)
+	message(STATUS "zlib found through find_package, adding it as a linked library")
+else()
+	message(STATUS "zlib *NOT* found through find_package, adding sources from third party sources")
+
+	file (GLOB HEADERFILES_THIRDPARTY_ZLIB ${XMPROOT_DIR}/third-party/zlib/*.h)
+	list (REMOVE_ITEM HEADERFILES_THIRDPARTY_ZLIB
+		${CMAKE_CURRENT_SOURCE_DIR}/${XMPROOT_DIR}/third-party/zlib/gzguts.h
+		)
+	source_group("Header Files\\ThirdParty\\zlib" FILES ${HEADERFILES_THIRDPARTY_ZLIB})
+
+	set (SOURCEFILES_THIRDPARTY_ZLIB
+		${XMPROOT_DIR}/third-party/zlib/adler32.c
+		${XMPROOT_DIR}/third-party/zlib/compress.c
 	${XMPROOT_DIR}/third-party/zlib/crc32.c
 	${XMPROOT_DIR}/third-party/zlib/deflate.c
 	${XMPROOT_DIR}/third-party/zlib/infback.c
@@ -184,10 +212,13 @@ list (APPEND HEADERFILES_THIRDPARTY_ZLIB
 	${XMPROOT_DIR}/third-party/zlib/inflate.c
 	${XMPROOT_DIR}/third-party/zlib/inftrees.c
 	${XMPROOT_DIR}/third-party/zlib/trees.c
-	${XMPROOT_DIR}/third-party/zlib/uncompr.c
-	${XMPROOT_DIR}/third-party/zlib/zutil.c
-	)
-source_group("Source Files\\ThirdParty\\zlib" FILES ${HEADERFILES_THIRDPARTY_ZLIB})
+		${XMPROOT_DIR}/third-party/zlib/uncompr.c
+		${XMPROOT_DIR}/third-party/zlib/zutil.c
+		)
+	source_group("Source Files\\ThirdParty\\zlib" FILES ${SOURCEFILES_THIRDPARTY_ZLIB})
+
+	include_directories(${XMPROOT_DIR}/third-party/zlib)
+endif()
 
 list(APPEND SOURCE_FILES
 	${INTERNAL_HEADER_COMMONCODE_NMDS}
@@ -201,6 +232,7 @@ list(APPEND SOURCE_FILES
 	${PUBLIC_HEADER_CLIENTGLUE}
 	${PUBLIC_HEADER}
 	${HEADERFILES_THIRDPARTY_ZLIB}
+	${SOURCEFILES_THIRDPARTY_ZLIB}
 	${HEADERFILES}
 	${RESOURCE_FILES}
 	${SOURCEFILES_COMMONCODE_NMDS}
@@ -213,7 +245,6 @@ list(APPEND SOURCE_FILES
 	${SOURCEFILES_PLUGINHANDLER}
 	${PUBLIC_XMPCOMMON_CLIENTGLUE_FILES}
 	${PUBLIC_XMPCORE_CLIENTGLUE_FILES}
-	${HEADERFILES_THIRDPARTY_ZLIB}
 	${FILES_THIRDPARTY_EXPAT}
 	)
 
@@ -222,8 +253,6 @@ include_directories(${XMPROOT_DIR})
 include_directories(${XMPROOT_DIR}/public/include)
 include_directories(${XMPROOT_DIR}/public/include/client-glue)
 
-include_directories(${TP_EXPAT_PATH})
-include_directories(${XMPROOT_DIR}/third-party/expat/public/lib)
 include_directories(${XMPROOT_DIR}/XMPFilesPlugins/api/source)
 include_directories(${RESOURCE_ROOT}/${XMP_PLATFORM_SHORT})
 
@@ -284,6 +313,13 @@ else ()
 endif()
 
 AddLibraryAndDependencies(${TARGET_NAME} ${XMP_BUILD_STATIC} YES "SHARED" SOURCE_FILES DEPENDENCY_LIST)
+
+if(THIRDPARTY_LIBRARIES)
+	message(VERBOSE "${TARGET_NAME} - linked libraries: ${THIRDPARTY_LIBRARIES}")
+	target_link_libraries(${TARGET_NAME}
+			${THIRDPARTY_LIBRARIES}
+	)
+endif()
 
 # ==============================================================================
 # Link dependencies

@@ -4,10 +4,10 @@ cmake_minimum_required(VERSION 2.8.6)
 # Enable folder grouping of projects in IDEs
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-
+find_package(EXPAT 2.1.0)
 
 # ==============================================================================
-# For convenience we define the sources as a variable. You can add 
+# For convenience we define the sources as a variable. You can add
 # header files and cpp/c files and CMake will sort them out
 # ==============================================================================
 
@@ -88,17 +88,34 @@ list (REMOVE_ITEM CORECLASS_SOURCE_FILES ${SOURCE_ROOT}/XMPCore_Impl.cpp)
 source_group("Source Files\\Core Classes" FILES ${CORECLASS_SOURCE_FILES})
 
 file (GLOB ZUID_SOURCE_FILES ${TP_ZUID_PATH}/*.cpp)
+
+if (EXPAT_FOUND)
+	list (APPEND THIRDPARTY_LIBRARIES
+		EXPAT::EXPAT
+	)
+	message(STATUS "Expat found through find_package, adding it as a linked library")
+else()
+	# TODO: Check existence
+	message(STATUS "Expat *NOT* found through find_package, adding sources from third party sources")
+	set(TP_EXPAT_PATH "${PROJECT_ROOT}/../../third-party/expat/lib/")
+	list (APPEND THIRDPARTY_SOURCE_FILES
+		${TP_EXPAT_PATH}/xmlparse.c
+		${TP_EXPAT_PATH}/xmlrole.c
+		${TP_EXPAT_PATH}/xmltok.c
+	)
+
+	if(WIN32)
+		list (APPEND THIRDPARTY_SOURCE_FILES ${RESOURCE_ROOT}/win/expat_config.h)
+	else()
+		list (APPEND THIRDPARTY_SOURCE_FILES ${RESOURCE_ROOT}/${XMP_PLATFORM_SHORT}/expat_config.h)
+	endif()
+
+	include_directories(${XMPROOT_DIR}/third-party/expat/public/lib)
+endif()
+
 list (APPEND THIRDPARTY_SOURCE_FILES
-	${TP_EXPAT_PATH}/xmlparse.c
-	${TP_EXPAT_PATH}/xmlrole.c
-	${TP_EXPAT_PATH}/xmltok.c
 	${ZUID_SOURCE_FILES}
 	)
-if(WIN32)
-	list (APPEND THIRDPARTY_SOURCE_FILES ${RESOURCE_ROOT}/win/expat_config.h)
-else()
-	list (APPEND THIRDPARTY_SOURCE_FILES ${RESOURCE_ROOT}/${XMP_PLATFORM_SHORT}/expat_config.h)
-endif()
 source_group("Source Files\\Third Party" FILES ${THIRDPARTY_SOURCE_FILES})
 
 list (APPEND UTILITY_SOURCE_FILES
@@ -155,7 +172,6 @@ endif()
 # include directories
 include_directories(${XMPROOT_DIR})
 include_directories(${XMPROOT_DIR}/public/include)
-include_directories(${XMPROOT_DIR}/third-party/expat/public/lib)
 include_directories(${RESOURCE_ROOT}/${XMP_PLATFORM_SHORT})
 if(UNIX AND NOT APPLE AND NOT ${XMP_BUILD_STATIC})
 include_directories(${XMPROOT_DIR}/XMPCore/third-party/boost)
@@ -227,6 +243,14 @@ else ()
 endif()
 
 AddLibraryAndDependencies(${TARGET_NAME} ${XMP_BUILD_STATIC} YES "SHARED" SOURCE_FILES DEPENDENCY_LIST)
+
+if(THIRDPARTY_LIBRARIES)
+	message(VERBOSE "${TARGET_NAME} - linked libraries: ${THIRDPARTY_LIBRARIES}")
+	target_link_libraries(${TARGET_NAME}
+		PRIVATE
+			${THIRDPARTY_LIBRARIES}
+	)
+endif()
 
 #set the output name
 set_target_properties(${TARGET_NAME} PROPERTIES OUTPUT_NAME  ${XMPCORE_LIB})
